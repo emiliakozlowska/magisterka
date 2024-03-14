@@ -78,6 +78,95 @@ risk_df_scaled = pd.DataFrame(scaled_data, columns=X_col_names)
 risk_df_filtered.update(risk_df_scaled)
 risk_df_filtered
 
+###############################################################################
+
+# Regresja logistyczna
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report
+
+X = risk_df_filtered[X_col_names]
+y = risk_df_filtered['RiskLevel']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+logistic_model = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000)
+logistic_model.fit(X_train, y_train)
+
+y_pred = logistic_model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Dokładność modelu: {accuracy:.2f}')
+print(classification_report(y_test, y_pred))
+
+###############################################################################
+
+# Drzewa decyzyjne
+from sklearn.tree import DecisionTreeClassifier
+
+X = risk_df_filtered[X_col_names]
+y = risk_df_filtered['RiskLevel']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+decision_tree_model = DecisionTreeClassifier(random_state=42)
+decision_tree_model.fit(X_train, y_train)
+y_pred = decision_tree_model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Dokładność modelu: {accuracy:.2f}')
+print(classification_report(y_test, y_pred))
+
+###############################################################################
+
+# Lasy losowe
+from sklearn.ensemble import RandomForestClassifier
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+random_forest_model = RandomForestClassifier(n_estimators=100, random_state=42)
+random_forest_model.fit(X_train, y_train)
+y_pred = random_forest_model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Dokładność modelu: {accuracy:.2f}')
+print(classification_report(y_test, y_pred))
+
+###############################################################################
+
+# Gradient Boosting
+from sklearn.ensemble import GradientBoostingClassifier
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+gradient_boosting_model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+gradient_boosting_model.fit(X_train, y_train)
+y_pred = gradient_boosting_model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Dokładność modelu: {accuracy:.2f}')
+print(classification_report(y_test, y_pred))
+
+###############################################################################
+
+# SVM
+from sklearn.svm import SVC
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+svm_model = SVC(kernel='rbf', C=1.0, gamma='scale', random_state=42)
+svm_model.fit(X_train, y_train)
+y_pred = svm_model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Dokładność modelu: {accuracy:.2f}')
+print(classification_report(y_test, y_pred))
+
+###############################################################################
+
+# SGD
+from sklearn.linear_model import SGDClassifier
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+sgd_model = SGDClassifier(loss='hinge', penalty='l2', alpha=0.0001, max_iter=1000, tol=1e-3, random_state=42)
+sgd_model.fit(X_train, y_train)
+y_pred = sgd_model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Dokładność modelu: {accuracy:.2f}')
+print(classification_report(y_test, y_pred))
+
+###############################################################################
+
+# Sieci neuronowe
+
+
 
 
 
