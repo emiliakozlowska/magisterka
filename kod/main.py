@@ -3,6 +3,9 @@ import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.tree import DecisionTreeClassifier, plot_tree
 
 
 risk_df = pd.read_csv(r"D:\Studia\0. SGH\MAGISTERKA\dane\Maternal Health Risk Data Set.csv", sep=';', decimal=',')
@@ -80,36 +83,77 @@ risk_df_filtered
 
 ###############################################################################
 
-# Regresja logistyczna
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report
-
-X = risk_df_filtered[X_col_names]
-y = risk_df_filtered['RiskLevel']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-logistic_model = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000)
-logistic_model.fit(X_train, y_train)
-
-y_pred = logistic_model.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print(f'Dokładność modelu: {accuracy:.2f}')
-print(classification_report(y_test, y_pred))
-
-###############################################################################
+# accuracy, precision, recall, and F1 score
 
 # Drzewa decyzyjne
-from sklearn.tree import DecisionTreeClassifier
 
 X = risk_df_filtered[X_col_names]
 y = risk_df_filtered['RiskLevel']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-decision_tree_model = DecisionTreeClassifier(random_state=42)
-decision_tree_model.fit(X_train, y_train)
-y_pred = decision_tree_model.predict(X_test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+
+# Definiowanie siatki parametrów do przeszukiwania
+param_grid = {
+    'max_depth': [None, 5, 10, 15, 20, 25],
+    'min_samples_split': [2, 5, 10, 15, 20],
+    'min_samples_leaf': [1, 2, 4, 6, 8]
+}
+
+# Przeszukiwanie siatki w celu znalezienia najlepszego zestawu parametrów
+grid_search_params = GridSearchCV(DecisionTreeClassifier(random_state=42), param_grid, cv=5)
+grid_search_params.fit(X_train, y_train)
+best_params = grid_search_params.best_params_
+print(best_params)
+
+# Budowanie wstępnego modelu drzewa decyzyjnego (bez przycinania)
+initial_clf = DecisionTreeClassifier(random_state=42, **best_params)
+initial_clf.fit(X_train, y_train)
+
+# Ocena modelu
+y_pred = initial_clf.predict(X_test)
 accuracy = accuracy_score(y_test, y_pred)
 print(f'Dokładność modelu: {accuracy:.2f}')
 print(classification_report(y_test, y_pred))
+
+# Przycinanie Drzewa - znalezienie optymalnego ccp_alpha
+ccp_alpha_values = np.linspace(start=0.001, stop=0.02, num=100)  # Przykładowy większy zakres
+grid_search = GridSearchCV(DecisionTreeClassifier(random_state=42),
+                           param_grid={'ccp_alpha': ccp_alpha_values}, cv=5)
+grid_search.fit(X_train, y_train)
+best_ccp_alpha = grid_search.best_params_['ccp_alpha']
+print(best_ccp_alpha)
+
+# Budowanie i trenowanie ostatecznego modelu drzewa decyzyjnego z optymalnym ccp_alpha
+final_clf = DecisionTreeClassifier(random_state=42, ccp_alpha=best_ccp_alpha)
+final_clf.fit(X_train, y_train)
+
+# Ocena modelu
+y_pred = final_clf.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Dokładność modelu: {accuracy:.2f}')
+print(classification_report(y_test, y_pred))
+
+# Wizualizacja ważności cech
+feature_importances = final_clf.feature_importances_
+features = X.columns
+feature_importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
+feature_importance_df = feature_importance_df.sort_values(by='Importance', ascending=False)
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Importance', y='Feature', data=feature_importance_df)
+plt.title('Feature Importances in Decision Tree Model')
+plt.xlabel('Importance')
+plt.ylabel('Feature')
+plt.show()
+
+# Wizualizacja Ostatecznego Drzewa Decyzyjnego
+plt.figure(figsize=(20, 12))
+plot_tree(final_clf, 
+          filled=True, 
+          feature_names=X.columns.tolist(), 
+          fontsize=12,
+          rounded=True, 
+          impurity=True)
+plt.show()
 
 ###############################################################################
 
