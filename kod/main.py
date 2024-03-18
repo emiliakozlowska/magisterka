@@ -16,9 +16,8 @@ from sklearn.svm import SVC
 
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from scikeras.wrappers import KerasClassifier
 
 
 risk_df = pd.read_csv(r"D:\Studia\0. SGH\MAGISTERKA\dane\Maternal Health Risk Data Set.csv", sep=';', decimal=',')
@@ -44,7 +43,7 @@ cv_result = (risk_df[X_col_names].std() / risk_df[X_col_names].mean()) * 100
 print(cv_result)
 
 # Wykresy gestosci
-sns.set(style="whitegrid")
+sns.set_theme(style="whitegrid")
 for col in X_col_names:
     plt.figure(figsize=(8, 4))
     sns.kdeplot(risk_df[col], shade=True)
@@ -54,7 +53,7 @@ for col in X_col_names:
     plt.show()
     
 # Wykres czestosci dla RiskLevel
-sns.set(style="whitegrid")
+sns.set_theme(style="whitegrid")
 plt.figure(figsize=(8, 6))
 sns.countplot(x='RiskLevel', data=risk_df, palette='plasma')
 plt.title('Wykres częstości dla zmiennej RiskLevel')
@@ -373,24 +372,89 @@ accuracy_test = siec1.evaluate(X_test, y_test)
 print('Accuracy: %.2f' % (accuracy_test[1]*100))
 
 # Sieć 2 - wybór liczby epok
-early_stopping = EarlyStopping(monitor='val_loss', patience=5, verbose=1)
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, verbose=1)
 siec2t = Sequential()
 siec2t.add(Dense(6, input_dim=X_train.shape[1], activation='relu'))
 siec2t.add(Dense(3, activation='softmax'))
 siec2t.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 siec2t.fit(X_train, y_train, epochs=200, batch_size=10, 
            validation_data=(X_test, y_test), 
-           callbacks=[early_stopping])
+           callbacks=[early_stopping])  # Epoki = 115
+
+siec2 = Sequential()
+siec2.add(Dense(6, input_dim=X_train.shape[1], activation='relu'))
+siec2.add(Dense(3, activation='softmax'))
+siec2.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+siec2.fit(X_train, y_train, epochs=150, batch_size=10)
+
+accuracy_train = siec2.evaluate(X_train, y_train)
+print('Accuracy: %.2f' % (accuracy_train[1]*100))
+accuracy_test = siec2.evaluate(X_test, y_test)
+print('Accuracy: %.2f' % (accuracy_test[1]*100))
+
+# Sieć 3 - callback
+checkpoint = ModelCheckpoint(filepath='best_model.keras', monitor='val_accuracy', 
+                             save_best_only=True, mode='max', verbose=1)
+
+siec3 = Sequential()
+siec3.add(Dense(6, input_dim=X_train.shape[1], activation='relu'))
+siec3.add(Dense(3, activation='softmax'))
+siec3.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+siec3.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=150, batch_size=10, callbacks=[checkpoint])
+
+accuracy_train = siec3.evaluate(X_train, y_train)
+print('Accuracy: %.2f' % (accuracy_train[1]*100))
+accuracy_test = siec3.evaluate(X_test, y_test)
+print('Accuracy: %.2f' % (accuracy_test[1]*100))
+
+# Sieć 4
+
+# Funkcja tworząca model
+def create_model(neurons=1, hidden_layers=1):
+    model = Sequential()
+    model.add(Dense(neurons, input_shape=(X_train.shape[1],), activation='relu'))
+    for _ in range(hidden_layers - 1):
+        model.add(Dense(neurons, activation='relu'))
+    model.add(Dense(y_train.shape[1], activation='softmax'))  # Liczba neuronów odpowiada liczbie klas
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+# Zdefiniuj zakres hiperparametrów do przetestowania
+neurons_range = [15, 20, 25]
+hidden_layers_range = [2, 3, 4]
+
+best_score = 0
+best_params = {}
+
+# Pętla do iteracji przez hiperparametry
+for neurons in neurons_range:
+    for hidden_layers in hidden_layers_range:
+        # Tworzenie i trenowanie modelu
+        model = create_model(neurons=neurons, hidden_layers=hidden_layers)
+        model.fit(X_train, y_train, epochs=115, batch_size=10, verbose=0, validation_split=0.2)
+        
+        # Ocena modelu
+        _, accuracy = model.evaluate(X_test, y_test, verbose=0)
+        
+        # Aktualizacja najlepszych parametrów, jeśli model jest lepszy
+        if accuracy > best_score:
+            best_score = accuracy
+            best_params = {'neurons': neurons, 'hidden_layers': hidden_layers}
+
+# Wyświetlenie najlepszych hiperparametrów
+print("Najlepsze hiperparametry:", best_params)
+print("Dokładność:", best_score)
 
 
+siec4 = Sequential()
+siec4.add(Dense(15, input_dim=X_train.shape[1], activation='relu'))
+siec4.add(Dense(15, activation='relu'))
+siec4.add(Dense(15, activation='relu'))
+siec4.add(Dense(3, activation='softmax'))
+siec4.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+siec4.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=115, batch_size=10)
 
-
-
-
-
-
-
-
-
-
-
+accuracy_train = siec4.evaluate(X_train, y_train)
+print('Accuracy: %.2f' % (accuracy_train[1]*100))
+accuracy_test = siec4.evaluate(X_test, y_test)
+print('Accuracy: %.2f' % (accuracy_test[1]*100))
