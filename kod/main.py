@@ -20,6 +20,7 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 
+
 risk_df = pd.read_csv(r"D:\Studia\0. SGH\MAGISTERKA\dane\Maternal Health Risk Data Set.csv", sep=';', decimal=',')
 risk_df.shape
 risk_df['RiskLevel'].unique()
