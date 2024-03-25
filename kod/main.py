@@ -19,40 +19,22 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
-
-
 risk_df = pd.read_csv(r"D:\Studia\0. SGH\MAGISTERKA\dane\Maternal Health Risk Data Set.csv", sep=';', decimal=',')
 risk_df.shape
 risk_df['RiskLevel'].unique()
 risk_df.isnull().sum()
 risk_df.info()
 
+# Zamiana skali z Fahrenheita na Celsjusza
+risk_df['BodyTemp'] = (risk_df['BodyTemp'] - 32) * 5/9
+
+# Mapowanie zmiennej RiskLevel
 mapping = {'low risk': 0, 'mid risk': 1, 'high risk': 2}
 risk_df['RiskLevel'] = risk_df['RiskLevel'].map(mapping)
-risk_df[['RiskLevel']].value_counts()
+value_counts = risk_df[['RiskLevel']].value_counts()
+percentage = (value_counts / value_counts.sum()) * 100
+print(percentage.round(2))
 
-X_col_names = risk_df.iloc[:, 0:6].columns
-
-# Zamiana skali z Fahrenheita na Celcjusza
-risk_df['BodyTemp'] = (risk_df['BodyTemp'] - 32) * 5/9
-# Skosnosc
-risk_df[X_col_names].skew()
-# Statystyki opisowe
-risk_df[X_col_names].describe()
-# Wspolczynnik zmiennosci
-cv_result = (risk_df[X_col_names].std() / risk_df[X_col_names].mean()) * 100
-print(cv_result)
-
-# Wykresy gestosci
-sns.set_theme(style="whitegrid")
-for col in X_col_names:
-    plt.figure(figsize=(8, 4))
-    sns.kdeplot(risk_df[col], shade=True)
-    plt.title(f'Wykres gęstości dla {col}')
-    plt.xlabel(f'{col}')
-    plt.ylabel('Gęstość')
-    plt.show()
-    
 # Wykres czestosci dla RiskLevel
 sns.set_theme(style="whitegrid")
 plt.figure(figsize=(8, 6))
@@ -60,9 +42,36 @@ sns.countplot(x='RiskLevel', data=risk_df, palette='plasma')
 plt.title('Wykres częstości dla zmiennej RiskLevel')
 plt.xlabel('Poziom ryzyka')
 plt.ylabel('Liczba wystąpień')
-plt.xticks(ticks=[0, 1, 2], labels=['Low Risk (1)', 'Medium Risk (2)', 'High Risk (3)']) # Opcjonalnie, aby lepiej opisać co oznaczają wartości 1, 2, 3
+plt.xticks(ticks=[0, 1, 2], labels=['Low Risk (1)', 'Medium Risk (2)', 'High Risk (3)'])
 plt.show()
 
+X_col_names = risk_df.iloc[:, 0:6].columns
+
+# Statystyki opisowe
+risk_df[X_col_names].describe().round(2)
+# Skosnosc
+risk_df[X_col_names].skew().round(2)
+# Wspolczynnik zmiennosci
+cv_result = (risk_df[X_col_names].std() / risk_df[X_col_names].mean()) * 100
+print(cv_result.round(2))
+
+# Wykresy gestosci
+sns.set_theme(style="whitegrid")
+fig, axes = plt.subplots(3, 2, figsize=(15, 15))
+axes = axes.flatten()
+
+for i, col in enumerate(X_col_names):
+    sns.kdeplot(risk_df[col], shade=True, ax=axes[i])
+    axes[i].set_title(f'Wykres gęstości dla {col}')
+    axes[i].set_xlabel(f'{col}')
+    axes[i].set_ylabel('Gęstość')
+    
+if len(X_col_names) % 2 != 0:
+    fig.delaxes(axes[-1])
+
+plt.tight_layout()
+plt.show()
+    
 # Wartosci odstajace
 q1 = risk_df[X_col_names].quantile(0.25)
 q3 = risk_df[X_col_names].quantile(0.75)
