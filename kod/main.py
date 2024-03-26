@@ -19,6 +19,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
+
 risk_df = pd.read_csv(r"D:\Studia\0. SGH\MAGISTERKA\dane\Maternal Health Risk Data Set.csv", sep=';', decimal=',')
 risk_df.shape
 risk_df['RiskLevel'].unique()
@@ -52,7 +53,7 @@ risk_df[X_col_names].describe().round(2)
 # Skosnosc
 risk_df[X_col_names].skew().round(2)
 # Wspolczynnik zmiennosci
-cv_result = (risk_df[X_col_names].std() / risk_df[X_col_names].mean()) * 100
+cv_result = (risk_df[X_col_names].std() / risk_df[X_col_names].mean())
 print(cv_result.round(2))
 
 # Wykresy gestosci
@@ -80,8 +81,18 @@ l_bound = (q1 - 1.5 * iqr)
 u_bound = (q1 + 1.5 * iqr)
 n_oo_l = (risk_df[X_col_names][iqr.index] < l_bound).sum()
 n_oo_u = (risk_df[X_col_names][iqr.index] > u_bound).sum()
-outliers = pd.DataFrame({'low_boundary':l_bound, 'up_boundary':u_bound, 'outliers l':n_oo_l, 'outliers U': n_oo_u})
+outliers = pd.DataFrame({'low_boundary':l_bound.round(2), 'up_boundary':u_bound.round(2), 'outliers l':n_oo_l.round(2), 'outliers U': n_oo_u.round(2)})
 print(outliers)
+
+# Wykresy boxplot
+sns.set_theme(style="whitegrid")
+plt.figure(figsize=(15, 10))
+
+for i, col in enumerate(X_col_names):
+    plt.subplot(3, 2, i+1) # 3 wiersze, 2 kolumny, pozycja i+1
+    sns.boxplot(y=risk_df[col], color="lightblue")
+    plt.title(f'Boxplot dla {col}')
+    plt.tight_layout()
 
 # Usuniecie wartosci odstajacych w HeartRate
 risk_df_sorted = risk_df.sort_values(by='HeartRate', ascending=True)
