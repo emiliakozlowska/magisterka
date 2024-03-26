@@ -6,19 +6,21 @@ import random as rn
 import xgboost as xgb
 import tensorflow as tf
 
+from scipy.stats import kendalltau
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
 
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
+###############################################################################
 
 risk_df = pd.read_csv(r"D:\Studia\0. SGH\MAGISTERKA\dane\Maternal Health Risk Data Set.csv", sep=';', decimal=',')
 risk_df.shape
@@ -50,8 +52,10 @@ X_col_names = risk_df.iloc[:, 0:6].columns
 
 # Statystyki opisowe
 risk_df[X_col_names].describe().round(2)
+
 # Skosnosc
 risk_df[X_col_names].skew().round(2)
+
 # Wspolczynnik zmiennosci
 cv_result = (risk_df[X_col_names].std() / risk_df[X_col_names].mean())
 print(cv_result.round(2))
@@ -60,16 +64,13 @@ print(cv_result.round(2))
 sns.set_theme(style="whitegrid")
 fig, axes = plt.subplots(3, 2, figsize=(15, 15))
 axes = axes.flatten()
-
 for i, col in enumerate(X_col_names):
     sns.kdeplot(risk_df[col], shade=True, ax=axes[i])
     axes[i].set_title(f'Wykres gęstości dla {col}')
     axes[i].set_xlabel(f'{col}')
     axes[i].set_ylabel('Gęstość')
-    
 if len(X_col_names) % 2 != 0:
     fig.delaxes(axes[-1])
-
 plt.tight_layout()
 plt.show()
     
@@ -100,10 +101,25 @@ risk_df_sorted
 risk_df_filtered = risk_df.loc[risk_df['HeartRate'] != 7]
 risk_df_filtered.shape
 
-# Korelacja
-correlation = risk_df_filtered.corr().round(2)
+# Wykresy boxplot
+sns.set_theme(style="whitegrid")
+plt.figure(figsize=(15, 10))
+sns.boxplot(y=risk_df_filtered['HeartRate'], color="lightblue")
+plt.title('Boxplot dla HeartRate')
+plt.tight_layout()
+
+# Korelacja - Kendall
+correlation = risk_df_filtered.corr(method='kendall').round(2)
 plt.figure(figsize = (10,6))
 sns.heatmap(correlation, annot = True, cmap = 'YlOrBr')
+p_values = pd.DataFrame(index=risk_df_filtered.columns, columns=risk_df_filtered.columns)
+for col1 in risk_df_filtered.columns:
+    for col2 in risk_df_filtered.columns:
+        _, p = kendalltau(risk_df_filtered[col1], risk_df_filtered[col2])
+        p_values.loc[col1, col2] = p.round(3)
+plt.figure(figsize = (10,6))
+sns.heatmap(p_values.astype(float), annot = True, cmap = 'YlOrBr')
+plt.show()
 
 risk_df_sieci = risk_df_filtered.copy()
 
@@ -330,32 +346,6 @@ plt.barh(y=score.index, width=score.values, color='blue')
 plt.grid(alpha=0.4)
 plt.title('Feature Importance of Best Model')
 plt.show()
-
-###############################################################################
-
-# SVM (do wywalenia)
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-svm_model = SVC(kernel='rbf', probability=True, random_state=42)
-svm_model.fit(X_train, y_train)
-y_pred = svm_model.predict(X_test)
-
-# Ocena modelu
-accuracy = accuracy_score(y_test, y_pred)
-print("Dokładność predykcji: %.2f%%" % (accuracy * 100.0))
-print(classification_report(y_test, y_pred))
-conf_matrix = confusion_matrix(y_test, y_pred)
-print(conf_matrix)
-
-# Szukanie hiperparametów
-param_grid = {
-    'C': [0.1, 1, 10],  # Parametr regularyzacji
-    'gamma': ['scale', 0.001, 0.01, 0.1],
-}
-grid_search = GridSearchCV(estimator=svm_model, param_grid=param_grid, cv=3, scoring='accuracy', verbose=2, n_jobs=-1)
-grid_search.fit(X_train, y_train)
-print("Najlepsze parametry:", grid_search.best_params_)
-print("Najlepsza dokładność:", grid_search.best_score_)
 
 ###############################################################################
 
