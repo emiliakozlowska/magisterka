@@ -7,11 +7,12 @@ import xgboost as xgb
 import tensorflow as tf
 
 from scipy.stats import kendalltau
+from itertools import cycle
 
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, label_binarize
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_curve, auc
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.ensemble import RandomForestClassifier
 
@@ -100,6 +101,7 @@ risk_df_sorted = risk_df.sort_values(by='HeartRate', ascending=True)
 risk_df_sorted
 risk_df_filtered = risk_df.loc[risk_df['HeartRate'] != 7]
 risk_df_filtered.shape
+risk_df_filtered = risk_df_filtered.sample(frac=1).reset_index(drop=True)
 
 # Wykresy boxplot
 sns.set_theme(style="whitegrid")
@@ -123,28 +125,29 @@ plt.show()
 
 risk_df_sieci = risk_df_filtered.copy()
 
-# Standaryzacja danych
+# Standaryzacja i podzial danych
+X = risk_df_filtered[X_col_names]
+y = risk_df_filtered['RiskLevel']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
 scaler = StandardScaler()
-scaled_data = scaler.fit_transform(risk_df_filtered[X_col_names])
-risk_df_scaled = pd.DataFrame(scaled_data, columns=X_col_names)
-risk_df_filtered.update(risk_df_scaled)
-risk_df_filtered
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+# X_train.shape
+# X_test.shape
+# y_train.shape
+# y_test.shape
 
 ###############################################################################
 
 # DRZEWA DECYZYJNE
 
-X = risk_df_filtered[X_col_names]
-y = risk_df_filtered['RiskLevel']
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
 # Definiowanie siatki parametrów do przeszukiwania
 param_grid = {
-    'max_depth': [5, 10, 15,],
+    'max_depth': [None, 5, 10, 15, 20],
     'min_samples_split': [2, 5, 10, 15],
-    'min_samples_leaf': [2, 4, 5],
-    'criterion': ['gini', 'entropy'],
-    'splitter': ['best', 'random']
+    'min_samples_leaf': [2, 3, 4],
+    'criterion': ['gini', 'entropy']
 }
 
 # Przeszukiwanie siatki w celu znalezienia najlepszego zestawu parametrów
@@ -157,14 +160,19 @@ print(best_params)
 initial_clf = DecisionTreeClassifier(random_state=42, **best_params)
 initial_clf.fit(X_train, y_train)
 
-# Ocena modelu
-y_pred = initial_clf.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print(f'Dokładność modelu: {accuracy:.2f}')
-print(classification_report(y_test, y_pred))
+# Ocena modelu na zbiorze treningowym i testowym
+y_pred_train = initial_clf.predict(X_train)
+accuracy_train = accuracy_score(y_train, y_pred_train)
+y_pred_test = initial_clf.predict(X_test)
+accuracy_test = accuracy_score(y_test, y_pred_test)
+print("Dokładność predykcji na zbiorze treningowym:", accuracy_train)
+print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
+print(classification_report(y_test, initial_clf.predict(X_test)))
+conf_matrix = confusion_matrix(y_test, y_pred_test)
+print(conf_matrix)
 
 # Przycinanie Drzewa - znalezienie optymalnego ccp_alpha
-ccp_alpha_values = np.linspace(start=0.001, stop=0.02, num=100)  # Przykładowy większy zakres
+ccp_alpha_values = np.linspace(start=0.0001, stop=0.02, num=100)  # Przykładowy większy zakres
 grid_search = GridSearchCV(DecisionTreeClassifier(random_state=42),
                            param_grid={'ccp_alpha': ccp_alpha_values}, cv=5)
 grid_search.fit(X_train, y_train)
@@ -172,24 +180,51 @@ best_ccp_alpha = grid_search.best_params_['ccp_alpha']
 print(best_ccp_alpha)
 
 # Budowanie i trenowanie ostatecznego modelu drzewa decyzyjnego z optymalnym ccp_alpha
-final_clf = DecisionTreeClassifier(random_state=42, ccp_alpha=best_ccp_alpha)
+final_clf = DecisionTreeClassifier(random_state=42, ccp_alpha=best_ccp_alpha) 
 final_clf.fit(X_train, y_train)
 
-# Ocena modelu
-y_pred = final_clf.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-conf_matrix = confusion_matrix(y_test, y_pred)
-print(f'Dokładność modelu: {accuracy:.2f}')
-print(classification_report(y_test, y_pred))
+# Ocena modelu na zbiorze treningowym i testowym
+y_pred_train = final_clf.predict(X_train)
+accuracy_train = accuracy_score(y_train, y_pred_train)
+y_pred_test = final_clf.predict(X_test)
+accuracy_test = accuracy_score(y_test, y_pred_test)
+print("Dokładność predykcji na zbiorze treningowym:", accuracy_train)
+print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
+print(classification_report(y_test, y_pred_test))
+conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
 
 # Wykres macieży pomyłek
-labels = ['Low Risk', 'Medium Risk', 'High Risk']
-plt.figure(figsize=(10, 7))
-sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
+labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
+plt.figure(figsize=(7, 5))
+sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='YlOrBr', xticklabels=labels, yticklabels=labels)
 plt.title('Macierz pomyłek')
 plt.xlabel('Przewidywane etykiety')
 plt.ylabel('Prawdziwe etykiety')
+plt.show()
+
+# ROC
+y_bin = label_binarize(y, classes=[0, 1, 2])
+n_classes = y_bin.shape[1]
+X_train_roc, X_test_roc, y_train_bin, y_test_bin = train_test_split(X, y_bin, test_size=0.3, random_state=42)
+y_score = final_clf.predict_proba(X_test)
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+colors = cycle(['gold', 'pink', 'red'])
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label='Krzywa ROC klasy {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Fałszywie Pozytywne')
+plt.ylabel('Prawdziwie Pozytywne')
+plt.title('Krzywe ROC dla poszczególnych klas')
+plt.legend(loc="lower right")
 plt.show()
  
 # Wizualizacja ważności cech
@@ -199,10 +234,10 @@ feature_importance_df = pd.DataFrame({'Feature': features, 'Importance': feature
 feature_importance_df = feature_importance_df.sort_values(by='Importance', ascending=False)
 
 plt.figure(figsize=(10, 6))
-sns.barplot(x='Importance', y='Feature', data=feature_importance_df)
-plt.title('Feature Importances in Decision Tree Model')
-plt.xlabel('Importance')
-plt.ylabel('Feature')
+sns.barplot(x='Importance', y='Feature', data=feature_importance_df, palette="Spectral")
+plt.title('Ważność cech w modelu drzewa decyzyjnego')
+plt.xlabel('Ważność')
+plt.ylabel('Zmienna')
 plt.show()
 
 # Wizualizacja Ostatecznego Drzewa Decyzyjnego
@@ -215,15 +250,17 @@ plot_tree(final_clf,
           impurity=True)
 plt.show()
 
-######################
-# ROC? można dla każdej klasy osobno zrobić
-
-
 ###############################################################################
 
 # LASY LOSOWE
 
+X = risk_df_filtered[X_col_names]
+y = risk_df_filtered['RiskLevel']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
 
 # Podstawowy model z 100 drzewami
 random_forest_100 = RandomForestClassifier(n_estimators = 100, 
@@ -247,7 +284,7 @@ accuracy_test = accuracy_score(y_test, y_pred_test)
 print("Dokładność predykcji na zbiorze treningowym:", accuracy_train)
 print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
 print(classification_report(y_test,random_forest_100.predict(X_test)))
-conf_matrix = confusion_matrix(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
 
 # Szukanie hiperparametrów
@@ -273,7 +310,7 @@ accuracy_test = accuracy_score(y_test, y_pred_test)
 print("Dokładność predykcji na zbiorze treningowym:", accuracy_train)
 print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
 print(classification_report(y_test, best_model.predict(X_test)))
-conf_matrix = confusion_matrix(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
 
 # Ważnoć cech
@@ -290,7 +327,8 @@ plt.show()
 
 # XGBoost
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
 xgb_model = xgb.XGBClassifier(objective='multi:softmax', num_class=3, random_state=42)
 xgb_model.fit(X_train, y_train)
 y_pred_xgb = xgb_model.predict(X_test)
@@ -469,3 +507,17 @@ accuracy_train = siec4.evaluate(X_train, y_train)
 print('Accuracy: %.2f' % (accuracy_train[1]*100))
 accuracy_test = siec4.evaluate(X_test, y_test)
 print('Accuracy: %.2f' % (accuracy_test[1]*100))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
