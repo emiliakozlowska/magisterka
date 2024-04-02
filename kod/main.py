@@ -227,7 +227,7 @@ plt.title('Krzywe ROC dla poszczególnych klas')
 plt.legend(loc="lower right")
 plt.show()
  
-# Wizualizacja ważności cech
+# Wizualizacja istotnosci cech
 feature_importances = final_clf.feature_importances_
 features = X.columns
 feature_importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
@@ -235,8 +235,8 @@ feature_importance_df = feature_importance_df.sort_values(by='Importance', ascen
 
 plt.figure(figsize=(10, 6))
 sns.barplot(x='Importance', y='Feature', data=feature_importance_df, palette="Spectral")
-plt.title('Ważność cech w modelu drzewa decyzyjnego')
-plt.xlabel('Ważność')
+plt.title('Istotność cech w modelu drzewa decyzyjnego')
+plt.xlabel('Istotność')
 plt.ylabel('Zmienna')
 plt.show()
 
@@ -263,17 +263,7 @@ X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
 # Podstawowy model z 100 drzewami
-random_forest_100 = RandomForestClassifier(n_estimators = 100, 
-                                           criterion = 'gini',
-                                           max_depth = None,
-                                           min_samples_leaf = 1,
-                                           min_weight_fraction_leaf = 0.0,
-                                           max_features = 'sqrt',
-                                           max_leaf_nodes = None,
-                                           bootstrap = True,
-                                           oob_score = False,
-                                           min_impurity_decrease = 0.0,                                           
-                                           random_state = 1)
+random_forest_100 = RandomForestClassifier(n_estimators = 100)
 random_forest_100.fit(X_train, y_train)
 
 # Ocena modelu na zbiorze treningowym i testowym
@@ -309,33 +299,73 @@ y_pred_test = best_model.predict(X_test)
 accuracy_test = accuracy_score(y_test, y_pred_test)
 print("Dokładność predykcji na zbiorze treningowym:", accuracy_train)
 print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
-print(classification_report(y_test, best_model.predict(X_test)))
+print(classification_report(y_test, y_pred_test))
 conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
 
-# Ważnoć cech
-feature_importance = best_model.feature_importances_
-feature_score = pd.Series(feature_importance, index=X_train.columns)
-score = feature_score.sort_values()
-plt.figure(figsize=(12,5))
-plt.barh(y=score.index, width=score.values, color='blue')
-plt.grid(alpha=0.4)
-plt.title('Feature Importance of Best Model')
+# Wykres macieży pomyłek
+labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
+plt.figure(figsize=(7, 5))
+sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
+plt.title('Macierz pomyłek')
+plt.xlabel('Przewidywane etykiety')
+plt.ylabel('Prawdziwe etykiety')
+plt.show()
+
+# ROC
+y_bin = label_binarize(y, classes=[0, 1, 2])
+n_classes = y_bin.shape[1]
+X_train_roc, X_test_roc, y_train_bin, y_test_bin = train_test_split(X, y_bin, test_size=0.3, random_state=42)
+y_score = best_model.predict_proba(X_test)
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+colors = cycle(['gold', 'pink', 'red'])
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label='Krzywa ROC klasy {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Fałszywie Pozytywne')
+plt.ylabel('Prawdziwie Pozytywne')
+plt.title('Krzywe ROC dla poszczególnych klas')
+plt.legend(loc="lower right")
+plt.show()
+ 
+# Wizualizacja istotnosci cech
+feature_importances = best_model.feature_importances_
+features = X.columns
+feature_importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
+feature_importance_df = feature_importance_df.sort_values(by='Importance', ascending=False)
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Importance', y='Feature', data=feature_importance_df, palette="Spectral")
+plt.title('Istotność cech w modelu lasu losowego')
+plt.xlabel('Istotność')
+plt.ylabel('Zmienna')
 plt.show()
 
 ###############################################################################
 
 # XGBoost
 
-#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+# Standaryzacja i podzial danych
+X = risk_df_filtered[X_col_names]
+y = risk_df_filtered['RiskLevel']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
 
 xgb_model = xgb.XGBClassifier(objective='multi:softmax', num_class=3, random_state=42)
 xgb_model.fit(X_train, y_train)
 y_pred_xgb = xgb_model.predict(X_test)
 
 # Ocena modelu
-accuracy = accuracy_score(y_test, y_pred_xgb)
-print("Dokładność predykcji: %.2f%%" % (accuracy * 100.0))
 y_pred_train = xgb_model.predict(X_train)
 accuracy_train = accuracy_score(y_train, y_pred_train)
 y_pred_test = xgb_model.predict(X_test)
@@ -361,11 +391,9 @@ grid_search.fit(X_train, y_train)
 print("Najlepsze parametry:", grid_search.best_params_)
 print("Najlepsza dokładność:", grid_search.best_score_)
 best_model = grid_search.best_estimator_
-y_pred_test = best_model.predict(X_test)
 
 # Ocena modelu
-accuracy = accuracy_score(y_test, y_pred_test)
-print("Dokładność predykcji: %.2f%%" % (accuracy * 100.0))
+y_pred_test = best_model.predict(X_test)
 y_pred_train = best_model.predict(X_train)
 accuracy_train = accuracy_score(y_train, y_pred_train)
 accuracy_test = accuracy_score(y_test, y_pred_test)
@@ -373,16 +401,51 @@ print("Dokładność predykcji na zbiorze treningowym:", accuracy_train)
 print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
 print(classification_report(y_test, y_pred_test))
 conf_matrix = confusion_matrix(y_test, y_pred_test)
-print(conf_matrix)
 
-# Ważnoć cech
-feature_importance = best_model.feature_importances_
-feature_score = pd.Series(feature_importance, index=X_train.columns)
-score = feature_score.sort_values()
-plt.figure(figsize=(12,5))
-plt.barh(y=score.index, width=score.values, color='blue')
-plt.grid(alpha=0.4)
-plt.title('Feature Importance of Best Model')
+# Wykres macieży pomyłek
+labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
+plt.figure(figsize=(7, 5))
+sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
+plt.title('Macierz pomyłek')
+plt.xlabel('Przewidywane etykiety')
+plt.ylabel('Prawdziwe etykiety')
+plt.show()
+
+# ROC
+y_bin = label_binarize(y, classes=[0, 1, 2])
+n_classes = y_bin.shape[1]
+X_train_roc, X_test_roc, y_train_bin, y_test_bin = train_test_split(X, y_bin, test_size=0.3, random_state=42)
+y_score = best_model.predict_proba(X_test)
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+colors = cycle(['gold', 'pink', 'red'])
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label='Krzywa ROC klasy {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Fałszywie Pozytywne')
+plt.ylabel('Prawdziwie Pozytywne')
+plt.title('Krzywe ROC dla poszczególnych klas')
+plt.legend(loc="lower right")
+plt.show()
+ 
+# Wizualizacja istotnosci cech
+feature_importances = best_model.feature_importances_
+features = X.columns
+feature_importance_df = pd.DataFrame({'Feature': features, 'Importance': feature_importances})
+feature_importance_df = feature_importance_df.sort_values(by='Importance', ascending=False)
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Importance', y='Feature', data=feature_importance_df, palette="Spectral")
+plt.title('Istotność cech w modelu XGBoost')
+plt.xlabel('Istotność')
+plt.ylabel('Zmienna')
 plt.show()
 
 ###############################################################################
