@@ -363,7 +363,6 @@ X_test = scaler.transform(X_test)
 
 xgb_model = xgb.XGBClassifier(objective='multi:softmax', num_class=3, random_state=42)
 xgb_model.fit(X_train, y_train)
-y_pred_xgb = xgb_model.predict(X_test)
 
 # Ocena modelu
 y_pred_train = xgb_model.predict(X_train)
@@ -379,14 +378,14 @@ print(conf_matrix)
 # Poszukiwanie hiperparametrów
 param_grid = {
     'n_estimators': [100, 200, 300],
-    'learning_rate': [0.1, 0.2, 0.3],
-    'max_depth': [10, 20, 50],
-    'min_child_weight': [2, 3, 4],
-    'gamma': [0, 0.1, 0.2],
-    'reg_alpha': [0, 0.001, 0.01],
-    'reg_lambda': [0, 0.001, 0.01]
+    'eta': [0.2, 0.3, 0.4],
+    'max_depth': [20, 30, 40],
+    'min_child_weight': [1, 2, 3],
+    'gamma': [0, 0.001],
+    'alpha': [0, 0.001, 0.01],
+    'lambda': [1, 1.1, 1.5]
 }
-grid_search = GridSearchCV(estimator=xgb_model, param_grid=param_grid, cv=3, scoring='accuracy', verbose=2, n_jobs=-1)
+grid_search = GridSearchCV(estimator=xgb_model, param_grid=param_grid, cv=5, scoring='accuracy', verbose=2, n_jobs=-1)
 grid_search.fit(X_train, y_train)
 print("Najlepsze parametry:", grid_search.best_params_)
 print("Najlepsza dokładność:", grid_search.best_score_)
