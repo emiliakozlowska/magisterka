@@ -16,10 +16,9 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.ensemble import RandomForestClassifier
 
-from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.callbacks import EarlyStopping
 
 ###############################################################################
 
@@ -451,13 +450,16 @@ plt.show()
 
 # Sieci neuronowe
 
+# Przygotowanie zbiorów i przetwarzanie cech
 risk_df_sieci.head()
 X = risk_df_sieci[X_col_names]
-y = risk_df_sieci['RiskLevel']
-y_one_hot = to_categorical(y)
-X_train, X_test, y_train, y_test = train_test_split(X, y_one_hot, test_size=0.3, random_state=42)
+y = risk_df_sieci[['RiskLevel']]
+y_tensor = tf.convert_to_tensor(y.values.ravel())
+y_one_hot = tf.one_hot(y_tensor, 3)
+y_one_hot_np = y_one_hot.numpy().reshape(-1, 3)
 
-# Przekształcenie zmiennych
+X_train, X_test, y_train, y_test = train_test_split(X, y_one_hot_np, test_size=0.3, random_state=42)
+
 num_transformer = StandardScaler()
 preprocessor = ColumnTransformer(
     transformers=[
@@ -474,52 +476,15 @@ tf.random.set_seed(42)
 siec1 = Sequential()
 siec1.add(Dense(6, input_dim=X_train.shape[1], activation='relu'))
 siec1.add(Dense(3, activation='softmax'))
-siec1.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-siec1.fit(X_train, y_train, epochs=50, batch_size=10)
+siec1.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+siec1.fit(X_train, y_train, epochs=200, batch_size=10)
 
 accuracy_train = siec1.evaluate(X_train, y_train)
-print('Accuracy: %.2f' % (accuracy_train[1]*100))
+print('Dokładność predykcji na zbiorze treningowym: %.2f' % (accuracy_train[1]*100))
 accuracy_test = siec1.evaluate(X_test, y_test)
-print('Accuracy: %.2f' % (accuracy_test[1]*100))
+print('Dokładność predykcji na zbiorze testowym: %.2f' % (accuracy_test[1]*100))
 
-# Sieć 2 - wybór liczby epok
-early_stopping = EarlyStopping(monitor='val_loss', patience=3, verbose=1)
-siec2t = Sequential()
-siec2t.add(Dense(6, input_dim=X_train.shape[1], activation='relu'))
-siec2t.add(Dense(3, activation='softmax'))
-siec2t.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-siec2t.fit(X_train, y_train, epochs=200, batch_size=10, 
-           validation_data=(X_test, y_test), 
-           callbacks=[early_stopping])  # Epoki = 115
-
-siec2 = Sequential()
-siec2.add(Dense(6, input_dim=X_train.shape[1], activation='relu'))
-siec2.add(Dense(3, activation='softmax'))
-siec2.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-siec2.fit(X_train, y_train, epochs=150, batch_size=10)
-
-accuracy_train = siec2.evaluate(X_train, y_train)
-print('Accuracy: %.2f' % (accuracy_train[1]*100))
-accuracy_test = siec2.evaluate(X_test, y_test)
-print('Accuracy: %.2f' % (accuracy_test[1]*100))
-
-# Sieć 3 - callback
-checkpoint = ModelCheckpoint(filepath='best_model.keras', monitor='val_accuracy', 
-                             save_best_only=True, mode='max', verbose=1)
-
-siec3 = Sequential()
-siec3.add(Dense(6, input_dim=X_train.shape[1], activation='relu'))
-siec3.add(Dense(3, activation='softmax'))
-siec3.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-siec3.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=150, batch_size=10, callbacks=[checkpoint])
-
-accuracy_train = siec3.evaluate(X_train, y_train)
-print('Accuracy: %.2f' % (accuracy_train[1]*100))
-accuracy_test = siec3.evaluate(X_test, y_test)
-print('Accuracy: %.2f' % (accuracy_test[1]*100))
-
-# Sieć 4
-
+# Sieć 2
 # Funkcja tworząca model
 def create_model(neurons=1, hidden_layers=1):
     model = Sequential()
@@ -531,8 +496,8 @@ def create_model(neurons=1, hidden_layers=1):
     return model
 
 # Zdefiniuj zakres hiperparametrów do przetestowania
-neurons_range = [15, 20, 25]
-hidden_layers_range = [2, 3, 4]
+neurons_range = [10, 15, 20]
+hidden_layers_range = [5, 10, 15]
 
 best_score = 0
 best_params = {}
@@ -542,7 +507,7 @@ for neurons in neurons_range:
     for hidden_layers in hidden_layers_range:
         # Tworzenie i trenowanie modelu
         model = create_model(neurons=neurons, hidden_layers=hidden_layers)
-        model.fit(X_train, y_train, epochs=115, batch_size=10, verbose=0, validation_split=0.2)
+        model.fit(X_train, y_train, epochs=200, batch_size=10, verbose=0, validation_split=0.2)
         
         # Ocena modelu
         _, accuracy = model.evaluate(X_test, y_test, verbose=0)
@@ -556,30 +521,119 @@ for neurons in neurons_range:
 print("Najlepsze hiperparametry:", best_params)
 print("Dokładność:", best_score)
 
+siec2 = Sequential()
+siec2.add(Dense(10, input_dim=X_train.shape[1], activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(10, activation='relu'))
+siec2.add(Dense(3, activation='softmax'))
+siec2.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+siec2.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=71, batch_size=10)
 
-siec4 = Sequential()
-siec4.add(Dense(15, input_dim=X_train.shape[1], activation='relu'))
-siec4.add(Dense(15, activation='relu'))
-siec4.add(Dense(15, activation='relu'))
-siec4.add(Dense(3, activation='softmax'))
-siec4.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-siec4.fit(X_train, y_train, validation_data=(X_test, y_test), epochs=115, batch_size=10)
-
-accuracy_train = siec4.evaluate(X_train, y_train)
+accuracy_train = siec2.evaluate(X_train, y_train)
 print('Accuracy: %.2f' % (accuracy_train[1]*100))
-accuracy_test = siec4.evaluate(X_test, y_test)
+accuracy_test = siec2.evaluate(X_test, y_test)
 print('Accuracy: %.2f' % (accuracy_test[1]*100))
 
+# Sieć 3 - wybór liczby epok
+# early_stopping = EarlyStopping(monitor='val_loss', patience=10, verbose=1)
+# siec3t = Sequential()
+# siec3t.add(Dense(10, input_dim=X_train.shape[1], activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(10, activation='relu'))
+# siec3t.add(Dense(3, activation='softmax'))
+# siec3t.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+# siec3t.fit(X_train, y_train, epochs=300, batch_size=10, 
+#             validation_data=(X_test, y_test), 
+#             callbacks=[early_stopping])  
+
+# siec3 = Sequential()
+# siec3.add(Dense(20, input_dim=X_train.shape[1], activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(20, activation='relu'))
+# siec3.add(Dense(3, activation='softmax'))
+# siec3.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+# siec3.fit(X_train, y_train, epochs=200, batch_size=10)
+
+# accuracy_train = siec3.evaluate(X_train, y_train)
+# print('Accuracy: %.2f' % (accuracy_train[1]*100))
+# accuracy_test = siec3.evaluate(X_test, y_test)
+# print('Accuracy: %.2f' % (accuracy_test[1]*100))
 
 
 
+y_pred_test_probs = siec2.predict(X_test)
+y_pred_test = np.argmax(y_pred_test_probs, axis=1)
+y_test_labels = np.argmax(y_test, axis=1)
+print(classification_report(y_test_labels, y_pred_test))
+conf_matrix = confusion_matrix(y_test_labels, y_pred_test)
 
+# Wykres macierzy pomyłek
+labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
+plt.figure(figsize=(7, 5))
+sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
+plt.title('Macierz pomyłek')
+plt.xlabel('Przewidywane etykiety')
+plt.ylabel('Prawdziwe etykiety')
+plt.show()
 
+# ROC i AUC
+y_bin = label_binarize(y_test_labels, classes=[0, 1, 2])
+n_classes = y_bin.shape[1]
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_bin[:, i], y_pred_test_probs[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
 
-
-
-
-
+colors = cycle(['gold', 'pink', 'red'])
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label='Krzywa ROC klasy {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Fałszywie Pozytywne')
+plt.ylabel('Prawdziwie Pozytywne')
+plt.title('Krzywe ROC dla poszczególnych klas')
+plt.legend(loc="lower right")
+plt.show()
 
 
 
