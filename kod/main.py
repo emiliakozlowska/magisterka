@@ -18,7 +18,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.callbacks import EarlyStopping
+#from tensorflow.keras.callbacks import EarlyStopping
 
 ###############################################################################
 
@@ -141,9 +141,10 @@ X_test = scaler.transform(X_test)
 
 # DRZEWA DECYZYJNE
 
+# MODEL 1
 # Definiowanie siatki parametrów do przeszukiwania
 param_grid = {
-    'max_depth': [None, 5, 10, 15, 20],
+    'max_depth': [None, 5, 10, 15],
     'min_samples_split': [2, 5, 10, 15],
     'min_samples_leaf': [2, 3, 4],
     'criterion': ['gini', 'entropy']
@@ -159,6 +160,25 @@ print(best_params)
 initial_clf = DecisionTreeClassifier(random_state=42, **best_params)
 initial_clf.fit(X_train, y_train)
 
+#################################################
+#Przykładowa ROC
+# y_proba = initial_clf.predict_proba(X_test)
+# y_proba_low_risk = y_proba[:, 0]
+# y_test_binary = (y_test == 0).astype(int)
+# fpr, tpr, thresholds = roc_curve(y_test_binary, y_proba_low_risk)
+# roc_auc = auc(fpr, tpr)
+# plt.figure(figsize=(8, 6))
+# plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+# plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+# plt.xlim([0.0, 1.0])
+# plt.ylim([0.0, 1.05])
+# plt.xlabel('Odsetek Fałszywie Pozytywnych')
+# plt.ylabel('Odsetek Prawdziwie Pozytywnych')
+# plt.title('Krzywa ROC dla klasy niskiego ryzyka')
+# plt.legend(loc="lower right")
+# plt.show()
+#################################################
+
 # Ocena modelu na zbiorze treningowym i testowym
 y_pred_train = initial_clf.predict(X_train)
 accuracy_train = accuracy_score(y_train, y_pred_train)
@@ -169,6 +189,41 @@ print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
 print(classification_report(y_test, initial_clf.predict(X_test)))
 conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
+
+# Wykres macieży pomyłek
+# labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
+# plt.figure(figsize=(7, 5))
+# sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
+# plt.title('Macierz pomyłek')
+# plt.xlabel('Przewidywane etykiety')
+# plt.ylabel('Prawdziwe etykiety')
+# plt.show()
+
+# ROC
+y_bin = label_binarize(y, classes=[0, 1, 2])
+n_classes = y_bin.shape[1]
+X_train_roc, X_test_roc, y_train_bin, y_test_bin = train_test_split(X, y_bin, test_size=0.3, random_state=42)
+y_score = initial_clf.predict_proba(X_test)
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+colors = cycle(['gold', 'pink', 'red'])
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label='Krzywa ROC klasy {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Fałszywie Pozytywne')
+plt.ylabel('Prawdziwie Pozytywne')
+plt.title('Krzywe ROC dla poszczególnych klas')
+plt.legend(loc="lower right")
+plt.show()
+
+# MODEL 2
 
 # Przycinanie Drzewa - znalezienie optymalnego ccp_alpha
 ccp_alpha_values = np.linspace(start=0.0001, stop=0.02, num=100)  # Przykładowy większy zakres
@@ -194,13 +249,13 @@ conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
 
 # Wykres macieży pomyłek
-labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
-plt.figure(figsize=(7, 5))
-sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='YlOrBr', xticklabels=labels, yticklabels=labels)
-plt.title('Macierz pomyłek')
-plt.xlabel('Przewidywane etykiety')
-plt.ylabel('Prawdziwe etykiety')
-plt.show()
+# labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
+# plt.figure(figsize=(7, 5))
+# sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
+# plt.title('Macierz pomyłek')
+# plt.xlabel('Przewidywane etykiety')
+# plt.ylabel('Prawdziwe etykiety')
+# plt.show()
 
 # ROC
 y_bin = label_binarize(y, classes=[0, 1, 2])
@@ -240,18 +295,20 @@ plt.ylabel('Zmienna')
 plt.show()
 
 # Wizualizacja Ostatecznego Drzewa Decyzyjnego
-plt.figure(figsize=(20, 12))
-plot_tree(final_clf, 
-          filled=True, 
-          feature_names=X.columns.tolist(), 
-          fontsize=12,
-          rounded=True, 
-          impurity=True)
-plt.show()
+# plt.figure(figsize=(20, 12))
+# plot_tree(final_clf, 
+#           filled=True, 
+#           feature_names=X.columns.tolist(), 
+#           fontsize=12,
+#           rounded=True, 
+#           impurity=True)
+# plt.show()
 
 ###############################################################################
 
 # LASY LOSOWE
+
+# MODEL 1
 
 X = risk_df_filtered[X_col_names]
 y = risk_df_filtered['RiskLevel']
@@ -275,6 +332,32 @@ print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
 print(classification_report(y_test,random_forest_100.predict(X_test)))
 conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
+
+# ROC
+y_bin = label_binarize(y, classes=[0, 1, 2])
+n_classes = y_bin.shape[1]
+X_train_roc, X_test_roc, y_train_bin, y_test_bin = train_test_split(X, y_bin, test_size=0.3, random_state=42)
+y_score = random_forest_100.predict_proba(X_test)
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+colors = cycle(['gold', 'pink', 'red'])
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label='Krzywa ROC klasy {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Fałszywie Pozytywne')
+plt.ylabel('Prawdziwie Pozytywne')
+plt.title('Krzywe ROC dla poszczególnych klas')
+plt.legend(loc="lower right")
+plt.show()
+
+# MODEL 2
 
 # Szukanie hiperparametrów
 random_forest = RandomForestClassifier(random_state=42)
@@ -303,13 +386,13 @@ conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
 
 # Wykres macieży pomyłek
-labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
-plt.figure(figsize=(7, 5))
-sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
-plt.title('Macierz pomyłek')
-plt.xlabel('Przewidywane etykiety')
-plt.ylabel('Prawdziwe etykiety')
-plt.show()
+# labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
+# plt.figure(figsize=(7, 5))
+# sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
+# plt.title('Macierz pomyłek')
+# plt.xlabel('Przewidywane etykiety')
+# plt.ylabel('Prawdziwe etykiety')
+# plt.show()
 
 # ROC
 y_bin = label_binarize(y, classes=[0, 1, 2])
@@ -352,6 +435,8 @@ plt.show()
 
 # XGBoost
 
+# MODEL 1
+
 # Standaryzacja i podzial danych
 X = risk_df_filtered[X_col_names]
 y = risk_df_filtered['RiskLevel']
@@ -373,6 +458,32 @@ print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
 print(classification_report(y_test, y_pred_test))
 conf_matrix = confusion_matrix(y_test, y_pred_test)
 print(conf_matrix)
+
+# ROC
+y_bin = label_binarize(y, classes=[0, 1, 2])
+n_classes = y_bin.shape[1]
+X_train_roc, X_test_roc, y_train_bin, y_test_bin = train_test_split(X, y_bin, test_size=0.3, random_state=42)
+y_score = xgb_model.predict_proba(X_test)
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+colors = cycle(['gold', 'pink', 'red'])
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label='Krzywa ROC klasy {0} (AUC = {1:0.2f})'.format(i, roc_auc[i]))
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Fałszywie Pozytywne')
+plt.ylabel('Prawdziwie Pozytywne')
+plt.title('Krzywe ROC dla poszczególnych klas')
+plt.legend(loc="lower right")
+plt.show()
+
+# MODEL 2
 
 # Poszukiwanie hiperparametrów
 param_grid = {
@@ -399,15 +510,16 @@ print("Dokładność predykcji na zbiorze treningowym:", accuracy_train)
 print("Dokładność predykcji na zbiorze testowym:", accuracy_test)
 print(classification_report(y_test, y_pred_test))
 conf_matrix = confusion_matrix(y_test, y_pred_test)
+print(conf_matrix)
 
 # Wykres macieży pomyłek
-labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
-plt.figure(figsize=(7, 5))
-sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
-plt.title('Macierz pomyłek')
-plt.xlabel('Przewidywane etykiety')
-plt.ylabel('Prawdziwe etykiety')
-plt.show()
+# labels = ['Niskie Ryzyko', 'Średnie Ryzyko', 'Wysokie Ryzyko']
+# plt.figure(figsize=(7, 5))
+# sns.heatmap(conf_matrix, annot=True, fmt='g', cmap='Blues', xticklabels=labels, yticklabels=labels)
+# plt.title('Macierz pomyłek')
+# plt.xlabel('Przewidywane etykiety')
+# plt.ylabel('Prawdziwe etykiety')
+# plt.show()
 
 # ROC
 y_bin = label_binarize(y, classes=[0, 1, 2])
